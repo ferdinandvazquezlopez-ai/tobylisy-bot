@@ -3,7 +3,7 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 import yt_dlp
 import os
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = "8096709051:AAGviaUIPV2icQYUjZIl9y53gMPrZGdSkyY"
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
