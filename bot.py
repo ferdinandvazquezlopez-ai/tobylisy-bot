@@ -101,7 +101,6 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
 app = ApplicationBuilder().token(TOKEN).build()
-from telegram.ext import CommandHandler
 
 app.add_handler(CommandHandler("reglas", reglas))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
