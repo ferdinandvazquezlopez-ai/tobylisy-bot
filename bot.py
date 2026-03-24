@@ -83,12 +83,10 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for palabra in PALABRAS_PROHIBIDAS:
         if palabra in texto:
-
-            # 🧹 BORRAR MENSAJE PRIMERO
-try:
-    await update.message.delete()
-except:
-    pass
+            try:
+                await update.message.delete()
+            except:
+                pass
 
 # ⚠️ SUMAR WARNING
 warnings[user_id] = warnings.get(user_id, 0) + 1
