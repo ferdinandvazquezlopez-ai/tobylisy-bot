@@ -98,12 +98,12 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             warnings[user_id] = warnings.get(user_id, 0) + 1
 
             if warnings[user_id] == 1:
-                await update.message.reply_text(
+                await update.effective_chat.send_message(
                     f"🟡 {user.first_name}, primera advertencia.\nRespeta las reglas."
                 )
 
             elif warnings[user_id] == 2:
-                await update.message.reply_text(
+                await update.effective_chat.send_message(
                     f"🟠 {user.first_name}, segunda advertencia.\nPróxima advertencia = expulsión."
                 )
 
@@ -114,7 +114,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except:
                     pass
 
-                await update.message.reply_text(
+                await update.effective_chat.send_message(
                     f"🔴 {user.first_name} fue expulsado por acumular 3 advertencias."
                 )
 
