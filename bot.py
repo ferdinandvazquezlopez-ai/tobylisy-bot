@@ -81,43 +81,37 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    for palabra in PALABRAS_PROHIBIDAS:
-        if palabra in texto:
+for palabra in PALABRAS_PROHIBIDAS:
+    if palabra in texto:
+        try:
+            await update.message.delete()
+        except:
+            pass
+
+        warnings[user_id] = warnings.get(user_id, 0) + 1
+
+        if warnings[user_id] == 1:
+            await update.message.reply_text(
+                f"🟡 {user.first_name}, primera advertencia.\nRespeta las reglas."
+            )
+
+        elif warnings[user_id] == 2:
+            await update.message.reply_text(
+                f"🟠 {user.first_name}, segunda advertencia.\nPróxima advertencia = expulsión."
+            )
+
+        elif warnings[user_id] >= 3:
             try:
-                await update.message.delete()
+                await update.message.chat.ban_member(user_id)
+                await update.message.chat.unban_member(user_id)
             except:
                 pass
 
-# ⚠️ SUMAR WARNING
-warnings[user_id] = warnings.get(user_id, 0) + 1
+            await update.message.reply_text(
+                f"🔴 {user.first_name} fue expulsado por acumular 3 advertencias."
+            )
 
-# 🟨 WARNING 1
-if warnings[user_id] == 1:
-    await update.message.reply_text(
-        f"🟨 {user.first_name}, primera advertencia.\nRespeta las reglas."
-    )
-
-# 🟨 WARNING 2
-elif warnings[user_id] == 2:
-    await update.message.reply_text(
-        f"🟨 {user.first_name}, segunda advertencia.\nÚltima oportunidad."
-    )
-
-# 🔴 WARNING 3 → BAN
-elif warnings[user_id] >= 3:
-    await update.message.reply_text(
-        f"🔴 {user.first_name} ha sido expulsado por incumplir las reglas."
-    )
-
-    try:
-        await context.bot.ban_chat_member(
-            chat_id=update.message.chat_id,
-            user_id=user_id
-        )
-    except:
-        pass
-
-break
+        break
 
 app = ApplicationBuilder().token(TOKEN).build()
 
