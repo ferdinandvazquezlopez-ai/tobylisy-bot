@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, ChatPermissions
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 import yt_dlp
 import os
@@ -84,28 +84,42 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for palabra in PALABRAS_PROHIBIDAS:
         if palabra in texto:
 
-            warnings[user_id] = warnings.get(user_id, 0) + 1
+            # 🧹 BORRAR MENSAJE PRIMERO
+try:
+    await update.message.delete()
+except:
+    pass
 
-            await update.message.reply_text(
-                f"⚠️ {user.first_name}, aquí debatimos sin ofender.\n"
-                f"Advertencia {warnings[user_id]}/3."
-            )
+# ⚠️ SUMAR WARNING
+warnings[user_id] = warnings.get(user_id, 0) + 1
 
-            try:
-                await update.message.delete()
-            except:
-                pass
+# 🟨 WARNING 1
+if warnings[user_id] == 1:
+    await update.message.reply_text(
+        f"🟨 {user.first_name}, primera advertencia.\nRespeta las reglas."
+    )
 
-            if warnings[user_id] >= 3:
-                try:
-                    await context.bot.ban_chat_member(
-                        chat_id=update.message.chat_id,
-                        user_id=user_id
-                    )
-                except:
-                    pass
+# 🟨 WARNING 2
+elif warnings[user_id] == 2:
+    await update.message.reply_text(
+        f"🟨 {user.first_name}, segunda advertencia.\nÚltima oportunidad."
+    )
 
-            return
+# 🔴 WARNING 3 → BAN
+elif warnings[user_id] >= 3:
+    await update.message.reply_text(
+        f"🔴 {user.first_name} ha sido expulsado por incumplir las reglas."
+    )
+
+    try:
+        await context.bot.ban_chat_member(
+            chat_id=update.message.chat_id,
+            user_id=user_id
+        )
+    except:
+        pass
+
+break
 
 app = ApplicationBuilder().token(TOKEN).build()
 
