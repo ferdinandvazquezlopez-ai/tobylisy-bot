@@ -73,6 +73,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+
 async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -81,43 +82,42 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-for palabra in PALABRAS_PROHIBIDAS:
-    if palabra in texto:
-        try:
-            await update.message.delete()
-        except:
-            pass
-
-        warnings[user_id] = warnings.get(user_id, 0) + 1
-
-        if warnings[user_id] == 1:
-            await update.message.reply_text(
-                f"🟡 {user.first_name}, primera advertencia.\nRespeta las reglas."
-            )
-
-        elif warnings[user_id] == 2:
-            await update.message.reply_text(
-                f"🟠 {user.first_name}, segunda advertencia.\nPróxima advertencia = expulsión."
-            )
-
-        elif warnings[user_id] >= 3:
+    for palabra in PALABRAS_PROHIBIDAS:
+        if palabra in texto:
             try:
-                await update.message.chat.ban_member(user_id)
-                await update.message.chat.unban_member(user_id)
+                await update.message.delete()
             except:
                 pass
 
-            await update.message.reply_text(
-                f"🔴 {user.first_name} fue expulsado por acumular 3 advertencias."
-            )
+            warnings[user_id] = warnings.get(user_id, 0) + 1
 
-        break
+            if warnings[user_id] == 1:
+                await update.message.reply_text(
+                    f"🟡 {user.first_name}, primera advertencia.\nRespeta las reglas."
+                )
+
+            elif warnings[user_id] == 2:
+                await update.message.reply_text(
+                    f"🟠 {user.first_name}, segunda advertencia.\nPróxima advertencia = expulsión."
+                )
+
+            elif warnings[user_id] >= 3:
+                try:
+                    await update.message.chat.ban_member(user_id)
+                    await update.message.chat.unban_member(user_id)
+                except:
+                    pass
+
+                await update.message.reply_text(
+                    f"🔴 {user.first_name} fue expulsado por acumular 3 advertencias."
+                )
+
+            break
 
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("reglas", reglas))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, moderar))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
 app.run_polling()
