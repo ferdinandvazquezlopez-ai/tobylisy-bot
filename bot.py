@@ -29,7 +29,14 @@ Se cierra en la noche y abre en la mañana.
 ¡Disfrutemos sin odio! 🤝
 """
 
-PALABRAS_PROHIBIDAS = ["idiota", "estupido", "bruto", "cabron", "pendejo"]
+PALABRAS_PROHIBIDAS = [
+    "idiota", "estupido", "bruto", "cabron", "pendejo",
+    "imbecil", "basura", "ridiculo",
+    "zangano", "loco", "asqueroso",
+    "porqueria", "mierda", "jodio", "mamabicho", "moron",
+    "stupid", "idiot", "dumb", "trash", "loser",
+    "fuck", "shit", "bitch", "asshole", "bastard", "pulpo", "moco"
+]
 
 warnings = {}
 
