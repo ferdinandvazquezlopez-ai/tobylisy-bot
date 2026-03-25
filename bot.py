@@ -45,7 +45,7 @@ PALABRAS_PROHIBIDAS = [
     "zangano", "loco", "asqueroso",
     "porqueria", "mierda", "jodio", "mamabicho", "moron",
     "stupid", "idiot", "dumb", "trash", "loser",
-    "fuck", "shit", "bitch", "asshole", "bastard", "pulpo", "moco", "estupida"
+    "fuck", "shit", "bitch", "asshole", "bastard", "pulpo", "moco", "estupida", "estúpido", "estúpida"
 ]
 
 warnings = {}
