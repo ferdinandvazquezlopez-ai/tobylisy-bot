@@ -398,11 +398,11 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="No tienes permisos para usar /cerrar."
+            text="No tienes permisos para usar /abrir."
         )
         return
 
@@ -414,17 +414,31 @@ async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.set_chat_permissions(
             chat_id=update.effective_chat.id,
-            permissions=ChatPermissions(can_send_messages=False)
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=False,
+                can_invite_users=True,
+                can_pin_messages=False
+            )
         )
 
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="🌙 Chat cerrado por un administrador."
+            text="☀️ Chat abierto por un administrador."
         )
     except Exception as e:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f"Error al cerrar el chat: {e}"
+            text=f"Error al abrir el chat: {e}"
         )
 
 async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -437,7 +451,7 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await update.message.delete()
-    except:
+    except Exception:
         pass
 
     try:
