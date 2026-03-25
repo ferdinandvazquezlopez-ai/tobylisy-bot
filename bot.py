@@ -401,12 +401,19 @@ async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin = await update.effective_chat.get_member(update.effective_user.id)
 
     if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="No tienes permisos para usar /cerrar."
+        )
         return
 
     try:
         await update.message.delete()
-    except:
-        pass
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"No pude borrar el comando: {e}"
+        )
 
     try:
         await context.bot.set_chat_permissions(
@@ -428,12 +435,19 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin = await update.effective_chat.get_member(update.effective_user.id)
 
     if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="No tienes permisos para usar /abrir."
+        )
         return
 
     try:
         await update.message.delete()
-    except:
-        pass
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"No pude borrar el comando: {e}"
+        )
 
     try:
         await context.bot.set_chat_permissions(
@@ -446,11 +460,11 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 can_send_videos=True,
                 can_send_video_notes=True,
                 can_send_voice_notes=True,
-                can_send_polls=False,
+                can_send_polls=True,
                 can_send_other_messages=True,
                 can_add_web_page_previews=True,
                 can_change_info=False,
-                can_invite_users=False,
+                can_invite_users=True,
                 can_pin_messages=False
             )
         )
@@ -464,13 +478,6 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id,
             text=f"Error al abrir el chat: {e}"
         )
-        
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="☀️ Chat abierto por un administrador."
-        )
-    except Exception as e:
-        print(e)
 
 app = ApplicationBuilder().token(TOKEN).build()
 
