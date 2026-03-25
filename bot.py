@@ -14,7 +14,6 @@ warnings = {}
 
 TOKEN = os.getenv("TOKEN")
 GROUP_ID = -1002651241737
-ADMIN_IDS = [5342233495, -5342233495]
 
 REGLAS = """
 📌 REGLAS DEL CHAT – TOBY AND LISY
@@ -399,12 +398,9 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"Tu ID detectado es: {update.effective_user.id}"
-    )
+    member = await update.effective_chat.get_member(update.effective_user.id)
 
-    if update.effective_user.id not in ADMIN_IDS:
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="No tienes permisos para usar /cerrar."
@@ -433,7 +429,9 @@ async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id not in ADMIN_IDS:
+    member = await update.effective_chat.get_member(update.effective_user.id)
+
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="No tienes permisos para usar /abrir."
@@ -456,11 +454,11 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 can_send_videos=True,
                 can_send_video_notes=True,
                 can_send_voice_notes=True,
-                can_send_polls=False,
+                can_send_polls=True,
                 can_send_other_messages=True,
                 can_add_web_page_previews=True,
                 can_change_info=False,
-                can_invite_users=False,
+                can_invite_users=True,
                 can_pin_messages=False
             )
         )
