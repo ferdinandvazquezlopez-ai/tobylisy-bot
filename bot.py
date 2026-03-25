@@ -3,12 +3,17 @@ from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, fil
 import yt_dlp
 import os
 from collections import defaultdict
+from datetime import time as dt_time
+from zoneinfo import ZoneInfo
 import time
 from telegram.constants import ChatMemberStatus
 
 user_messages = defaultdict(list)
 
+warnings = {}
+
 TOKEN = os.getenv("TOKEN")
+GROUP_ID = -1002651241737
 
 REGLAS = """
 📌 REGLAS DEL CHAT – TOBY AND LISY
@@ -333,8 +338,60 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def chatid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Chat ID: {update.effective_chat.id}")
 
+async def cerrar_chat(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await context.bot.set_chat_permissions(
+            chat_id=GROUP_ID,
+            permissions=ChatPermissions(can_send_messages=False)
+        )
+        await context.bot.send_message(
+            chat_id=GROUP_ID,
+            text="🌙 Chat cerrado, nos vemos en la mañana. Descansen."
+        )
+    except Exception as e:
+        print(f"Error cerrando chat: {e}")
+
+
+async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await context.bot.set_chat_permissions(
+            chat_id=GROUP_ID,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=False,
+                can_invite_users=True,
+                can_pin_messages=False
+            )
+        )
+        await context.bot.send_message(
+            chat_id=GROUP_ID,
+            text="☀️ Buenos días, chat abierto."
+        )
+    except Exception as e:
+        print(f"Error abriendo chat: {e}")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
+job_queue = app.job_queue
+
+job_queue.run_daily(
+    cerrar_chat,
+    time=dt_time(hour=0, minute=0, tzinfo=ZoneInfo("America/Chicago"))
+)
+
+job_queue.run_daily(
+    abrir_chat,
+    time=dt_time(hour=7, minute=0, tzinfo=ZoneInfo("America/Chicago"))
+)
 app.add_handler(CommandHandler("reglas", reglas))
 app.add_handler(CommandHandler("reporte", reporte))
 app.add_handler(CommandHandler("reset", reset_warnings))
