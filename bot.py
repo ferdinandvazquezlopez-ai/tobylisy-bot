@@ -319,22 +319,6 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"No pude expulsar a {user.first_name}."
         )
 
-async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await update.effective_chat.get_member(update.effective_user.id)
-
-    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-        return
-
-    await update.message.reply_text(
-        "🛡️ Comandos de admin disponibles:\n"
-        "/warn - da warning manual respondiendo a un mensaje\n"
-        "/reset - reinicia warnings respondiendo a un mensaje\n"
-        "/mute - silencia por 10 minutos respondiendo a un mensaje\n"
-        "/unmute - quita mute respondiendo a un mensaje\n"
-        "/ban - expulsa respondiendo a un mensaje\n"
-        "/warnings - ver tus warnings\n"
-    )
-
 async def chatid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Chat ID: {update.effective_chat.id}")
 
@@ -378,6 +362,40 @@ async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         print(f"Error abriendo chat: {e}")
+
+async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    member = await context.bot.get_chat_member(chat_id, user_id)
+
+    if member.status not in ["administrator", "creator"]:
+        return
+
+    try:
+        await update.message.delete()
+    except:
+        pass
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "🔧 *Panel de Administrador*\n\n"
+            "⚠️ Moderación:\n"
+            "/warn (reply) - Dar advertencia\n"
+            "/reset (reply) - Reset warnings\n"
+            "/mute (reply) - Silenciar usuario\n"
+            "/unmute (reply) - Quitar mute\n"
+            "/ban (reply) - Expulsar usuario\n\n"
+            "📊 Información:\n"
+            "/warnings (reply) - Ver warnings de usuario\n"
+            "/chatid - Ver ID del grupo\n\n"
+            "⚙️ Sistema:\n"
+            "Auto cierre: 12:00 AM\n"
+            "Auto apertura: 7:00 AM\n"
+        ),
+        parse_mode="Markdown"
+    )
 
 app = ApplicationBuilder().token(TOKEN).build()
 
