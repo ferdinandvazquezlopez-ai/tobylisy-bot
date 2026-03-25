@@ -4,6 +4,7 @@ import yt_dlp
 import os
 from collections import defaultdict
 import time
+from telegram.constants import ChatMemberStatus
 
 user_messages = defaultdict(list)
 
@@ -188,12 +189,162 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⚠️ {user.first_name}, estás enviando muchos mensajes (spam)."
         )
 
+async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    # 🔒 Solo admins pueden usarlo
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    # ⚠️ Debe ser reply
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al mensaje o foto del usuario para darle warning.")
+        return
+
+    user = update.message.reply_to_message.from_user
+    user_id = user.id
+
+    warnings[user_id] = warnings.get(user_id, 0) + 1
+
+    if warnings[user_id] == 1:
+        await update.effective_chat.send_message(
+            f"🟡 {user.first_name} recibe una advertencia por contenido fuera de lugar."
+        )
+
+    elif warnings[user_id] == 2:
+        await update.effective_chat.send_message(
+            f"🟠 {user.first_name} recibe su segunda advertencia. Próxima falta = expulsión."
+        )
+
+    elif warnings[user_id] >= 3:
+        try:
+            await update.message.chat.ban_member(user_id)
+            await update.message.chat.unban_member(user_id)
+        except:
+            pass
+
+        await update.effective_chat.send_message(
+            f"🔴 {user.first_name} fue expulsado por acumulación de advertencias."
+        )
+
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al mensaje del usuario para silenciarlo.")
+        return
+
+    user = update.message.reply_to_message.from_user
+
+    try:
+        await update.message.chat.restrict_member(
+            user.id,
+            permissions=ChatPermissions(can_send_messages=False),
+            until_date=int(time.time()) + 600
+        )
+        await update.effective_chat.send_message(
+            f"🔇 {user.first_name} fue silenciado por 10 minutos."
+        )
+    except:
+        await update.effective_chat.send_message(
+            f"No pude silenciar a {user.first_name}."
+        )
+
+async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al mensaje del usuario para quitarle el mute.")
+        return
+
+    user = update.message.reply_to_message.from_user
+
+    try:
+        await update.message.chat.restrict_member(
+            user.id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=False,
+                can_invite_users=True,
+                can_pin_messages=False
+            )
+        )
+        await update.effective_chat.send_message(
+            f"🔊 {user.first_name} ya puede volver a escribir."
+        )
+    except:
+        await update.effective_chat.send_message(
+            f"No pude quitar el mute a {user.first_name}."
+        )
+
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al mensaje del usuario para expulsarlo.")
+        return
+
+    user = update.message.reply_to_message.from_user
+
+    try:
+        await update.message.chat.ban_member(user.id)
+        await update.effective_chat.send_message(
+            f"🚫 {user.first_name} fue expulsado por un administrador."
+        )
+    except:
+        await update.effective_chat.send_message(
+            f"No pude expulsar a {user.first_name}."
+        )
+
+async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    await update.message.reply_text(
+        "🛡️ Comandos de admin disponibles:\n"
+        "/warn - da warning manual respondiendo a un mensaje\n"
+        "/reset - reinicia warnings respondiendo a un mensaje\n"
+        "/mute - silencia por 10 minutos respondiendo a un mensaje\n"
+        "/unmute - quita mute respondiendo a un mensaje\n"
+        "/ban - expulsa respondiendo a un mensaje\n"
+        "/warnings - ver tus warnings\n"
+    )
+
+async def chatid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Chat ID: {update.effective_chat.id}")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("reglas", reglas))
 app.add_handler(CommandHandler("reporte", reporte))
 app.add_handler(CommandHandler("reset", reset_warnings))
 app.add_handler(CommandHandler("warnings", mis_warnings))
+app.add_handler(CommandHandler("warn", warn))
+app.add_handler(CommandHandler("mute", mute))
+app.add_handler(CommandHandler("unmute", unmute))
+app.add_handler(CommandHandler("ban", ban))
+app.add_handler(CommandHandler("adminhelp", adminhelp))
+app.add_handler(CommandHandler("chatid", chatid))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, moderar))
 
