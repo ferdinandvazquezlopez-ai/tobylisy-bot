@@ -348,11 +348,11 @@ async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
                 can_send_videos=True,
                 can_send_video_notes=True,
                 can_send_voice_notes=True,
-                can_send_polls=True,
+                can_send_polls=False,
                 can_send_other_messages=True,
                 can_add_web_page_previews=True,
                 can_change_info=False,
-                can_invite_users=True,
+                can_invite_users=False,
                 can_pin_messages=False
             )
         )
@@ -400,7 +400,7 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin = await update.effective_chat.get_member(update.effective_user.id)
 
-    if admin.status not in ["administrator", "creator"]:
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     try:
@@ -419,12 +419,15 @@ async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="🌙 Chat cerrado por un administrador."
         )
     except Exception as e:
-        print(e)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Error al cerrar el chat: {e}"
+        )
 
 async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin = await update.effective_chat.get_member(update.effective_user.id)
 
-    if admin.status not in ["administrator", "creator"]:
+    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     try:
@@ -443,15 +446,25 @@ async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 can_send_videos=True,
                 can_send_video_notes=True,
                 can_send_voice_notes=True,
-                can_send_polls=True,
+                can_send_polls=False,
                 can_send_other_messages=True,
                 can_add_web_page_previews=True,
                 can_change_info=False,
-                can_invite_users=True,
+                can_invite_users=False,
                 can_pin_messages=False
             )
         )
 
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="☀️ Chat abierto por un administrador."
+        )
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Error al abrir el chat: {e}"
+        )
+        
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="☀️ Chat abierto por un administrador."
