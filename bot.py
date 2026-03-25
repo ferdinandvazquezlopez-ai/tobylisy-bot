@@ -397,6 +397,68 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
+async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in ["administrator", "creator"]:
+        return
+
+    try:
+        await update.message.delete()
+    except:
+        pass
+
+    try:
+        await context.bot.set_chat_permissions(
+            chat_id=update.effective_chat.id,
+            permissions=ChatPermissions(can_send_messages=False)
+        )
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="🌙 Chat cerrado por un administrador."
+        )
+    except Exception as e:
+        print(e)
+
+async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = await update.effective_chat.get_member(update.effective_user.id)
+
+    if admin.status not in ["administrator", "creator"]:
+        return
+
+    try:
+        await update.message.delete()
+    except:
+        pass
+
+    try:
+        await context.bot.set_chat_permissions(
+            chat_id=update.effective_chat.id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=False,
+                can_invite_users=True,
+                can_pin_messages=False
+            )
+        )
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="☀️ Chat abierto por un administrador."
+        )
+    except Exception as e:
+        print(e)
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 job_queue = app.job_queue
@@ -420,6 +482,8 @@ app.add_handler(CommandHandler("unmute", unmute))
 app.add_handler(CommandHandler("ban", ban))
 app.add_handler(CommandHandler("adminhelp", adminhelp))
 app.add_handler(CommandHandler("chatid", chatid))
+app.add_handler(CommandHandler("cerrar", cerrar_manual))
+app.add_handler(CommandHandler("abrir", abrir_manual))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, moderar))
 
