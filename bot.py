@@ -1,6 +1,5 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
-import yt_dlp
 import os
 from collections import defaultdict
 from datetime import time as dt_time
@@ -9,11 +8,15 @@ import time
 from telegram.constants import ChatMemberStatus
 
 user_messages = defaultdict(list)
-
 warnings = {}
+
+user_messages = defaultdict(list)
+last_sender = None
+consecutive_count = 0
 
 TOKEN = os.getenv("TOKEN")
 GROUP_ID = -1002651241737
+LOG_GROUP_ID = -1003709178512
 
 REGLAS = """
 📌 REGLAS DEL CHAT – TOBY AND LISY
@@ -48,30 +51,6 @@ PALABRAS_PROHIBIDAS = [
     "fuck", "shit", "bitch", "asshole", "bastard", "pulpo", "moco", "estupida", "estúpido", "estúpida"
 ]
 
-warnings = {}
-
-async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-
-    text = update.message.text.strip()
-
-    if "instagram.com" in text or "tiktok.com" in text:
-        ydl_opts = {
-            "outtmpl": "video.%(ext)s",
-            "format": "mp4/best"
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(text, download=True)
-                filename = ydl.prepare_filename(info)
-
-            with open(filename, "rb") as f:
-                await update.message.reply_video(video=f)
-        except Exception as e:
-            await update.message.reply_text(f"Error: {e}")
-
 async def reglas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(REGLAS)
 
@@ -81,9 +60,6 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"👋 Bienvenido/a {member.first_name}\n\n{REGLAS}"
         )
-
-
-
 
 async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -149,59 +125,116 @@ async def reporte(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Mensaje: {texto_reportado}"
     )
 
+    await enviar_log(
+        context,
+        f"📋 LOG REPORTE\n"
+        f"Reportó: {usuario_reporta.first_name}\n"
+        f"Usuario reportado: {usuario_reportado.first_name}\n"
+        f"Mensaje: {texto_reportado}"
+    )
+
 async def mis_warnings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = await update.effective_chat.get_member(update.effective_user.id)
+
+    # Si responde a alguien y es admin, ve los warnings de esa persona
+    if update.message.reply_to_message:
+        if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+            return
+
+        user = update.message.reply_to_message.from_user
+        user_id = user.id
+        cantidad = warnings.get(user_id, 0)
+
+        await update.effective_chat.send_message(
+            f"📊 {user.first_name} tiene {cantidad} advertencia(s)."
+        )
+        return
+
+    # Si no responde a nadie, ve sus propios warnings
     user = update.message.from_user
     user_id = user.id
-
     cantidad = warnings.get(user_id, 0)
 
     await update.message.reply_text(
         f"📊 {user.first_name}, tienes {cantidad} advertencia(s)."
     )
 
-async def reset_warnings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.reply_to_message:
-        await update.message.reply_text("Responde al usuario para resetear warnings.")
-        return
-
-    user = update.message.reply_to_message.from_user
-    user_id = user.id
-
-    warnings[user_id] = 0
-
-    await update.message.reply_text(
-        f"✅ Warnings de {user.first_name} fueron reiniciados."
-    )
-
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+    global last_sender, consecutive_count
+
+    if not update.message or not update.message.from_user:
         return
 
     user = update.message.from_user
     user_id = user.id
     now = time.time()
 
+    # ---------------------------
+    # 🔹 CONTROL POR TIEMPO (5 seg)
+    # ---------------------------
     user_messages[user_id] = [t for t in user_messages[user_id] if now - t < 5]
     user_messages[user_id].append(now)
 
-    if len(user_messages[user_id]) > 5:
+    flood = len(user_messages[user_id]) > 10
+
+    # ---------------------------
+    # 🔹 CONTROL CONSECUTIVO
+    # ---------------------------
+    if last_sender == user_id:
+        consecutive_count += 1
+    else:
+        consecutive_count = 1
+        last_sender = user_id
+
+    consecutivo = consecutive_count >= 10
+
+    # ---------------------------
+    # 🔥 SI SE ACTIVA ALGUNO
+    # ---------------------------
+    if flood or consecutivo:
         try:
             await update.message.delete()
         except:
             pass
 
-        await update.message.reply_text(
-            f"⚠️ {user.first_name}, estás enviando muchos mensajes (spam)."
-        )
+        try:
+            await update.message.chat.restrict_member(
+                user_id,
+                permissions=ChatPermissions(can_send_messages=False),
+                until_date=int(time.time()) + 180
+            )
+
+            motivo = "SPAM (ráfaga)" if flood else "MONOPOLIZANDO CHAT"
+
+            await update.effective_chat.send_message(
+                f"⏸️ {user.first_name}, necesitas un break de 3 minutos. Tomate un Cafe.\nMotivo: {motivo}"
+            )
+
+            await enviar_log(
+                context,
+                f"📋 LOG MODERACIÓN\n"
+                f"Usuario: {user.first_name}\n"
+                f"Acción: AUTO MUTE\n"
+                f"Duración: 3 minutos\n"
+                f"Motivo: {motivo}"
+            )
+
+        except Exception as e:
+            await update.effective_chat.send_message(
+                f"No pude aplicar mute automático a {user.first_name}. Error: {e}"
+            )
+
+        # Resetear contadores
+        user_messages[user_id] = []
+        consecutive_count = 0
+        last_sender = None
 
 async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await update.effective_chat.get_member(update.effective_user.id)
+    member = await update.effective_chat.get_member(update.effective_user.id)
 
-    # 🔒 Solo admins pueden usarlo
-    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
-    # ⚠️ Debe ser reply
     if not update.message.reply_to_message:
         await update.message.reply_text("Responde al mensaje o foto del usuario para darle warning.")
         return
@@ -232,10 +265,23 @@ async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔴 {user.first_name} fue expulsado por acumulación de advertencias."
         )
 
-async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await update.effective_chat.get_member(update.effective_user.id)
+    admin_name = update.effective_user.first_name
+    user_name = user.first_name
+    cantidad = warnings[user_id]
 
-    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+    await enviar_log(
+        context,
+        f"📋 LOG MODERACIÓN\n"
+        f"Admin: {admin_name}\n"
+        f"Usuario: {user_name}\n"
+        f"Acción: WARN\n"
+        f"Total warnings: {cantidad}"
+    )
+
+async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = await update.effective_chat.get_member(update.effective_user.id)
+
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     if not update.message.reply_to_message:
@@ -250,18 +296,31 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
             permissions=ChatPermissions(can_send_messages=False),
             until_date=int(time.time()) + 600
         )
+
         await update.effective_chat.send_message(
             f"🔇 {user.first_name} fue silenciado por 10 minutos."
         )
-    except:
+
+        admin_name = update.effective_user.first_name
+        user_name = user.first_name
+
+        await enviar_log(
+            context,
+            f"📋 LOG MODERACIÓN\n"
+            f"Admin: {admin_name}\n"
+            f"Usuario: {user_name}\n"
+            f"Acción: MUTE\n"
+            f"Duración: 10 minutos"
+        )
+    except Exception as e:
         await update.effective_chat.send_message(
-            f"No pude silenciar a {user.first_name}."
+            f"No pude silenciar a {user.first_name}. Error: {e}"
         )
 
 async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await update.effective_chat.get_member(update.effective_user.id)
+    member = await update.effective_chat.get_member(update.effective_user.id)
 
-    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     if not update.message.reply_to_message:
@@ -289,18 +348,30 @@ async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 can_pin_messages=False
             )
         )
+
         await update.effective_chat.send_message(
             f"🔊 {user.first_name} ya puede volver a escribir."
         )
-    except:
+
+        admin_name = update.effective_user.first_name
+        user_name = user.first_name
+
+        await enviar_log(
+            context,
+            f"📋 LOG MODERACIÓN\n"
+            f"Admin: {admin_name}\n"
+            f"Usuario: {user_name}\n"
+            f"Acción: UNMUTE"
+        )
+    except Exception as e:
         await update.effective_chat.send_message(
-            f"No pude quitar el mute a {user.first_name}."
+            f"No pude quitar el mute a {user.first_name}. Error: {e}"
         )
 
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    admin = await update.effective_chat.get_member(update.effective_user.id)
+    member = await update.effective_chat.get_member(update.effective_user.id)
 
-    if admin.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     if not update.message.reply_to_message:
@@ -311,12 +382,24 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         await update.message.chat.ban_member(user.id)
+
         await update.effective_chat.send_message(
             f"🚫 {user.first_name} fue expulsado por un administrador."
         )
-    except:
+
+        admin_name = update.effective_user.first_name
+        user_name = user.first_name
+
+        await enviar_log(
+            context,
+            f"📋 LOG MODERACIÓN\n"
+            f"Admin: {admin_name}\n"
+            f"Usuario: {user_name}\n"
+            f"Acción: BAN"
+        )
+    except Exception as e:
         await update.effective_chat.send_message(
-            f"No pude expulsar a {user.first_name}."
+            f"No pude expulsar a {user.first_name}. Error: {e}"
         )
 
 async def chatid(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -328,13 +411,18 @@ async def cerrar_chat(context: ContextTypes.DEFAULT_TYPE):
             chat_id=GROUP_ID,
             permissions=ChatPermissions(can_send_messages=False)
         )
+
         await context.bot.send_message(
             chat_id=GROUP_ID,
-            text="🌙 Chat cerrado, nos vemos en la mañana. Descansen."
+            text="🌙 Chat cerrado. Nos vemos en la mañana. Descansen."
+        )
+
+        await enviar_log(
+            context,
+            "📋 LOG SISTEMA\nAcción: CIERRE AUTOMÁTICO DEL CHAT"
         )
     except Exception as e:
         print(f"Error cerrando chat: {e}")
-
 
 async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -356,39 +444,44 @@ async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
                 can_pin_messages=False
             )
         )
+
         await context.bot.send_message(
             chat_id=GROUP_ID,
-            text="☀️ Buenos días, chat abierto."
+            text="☀️ Buenos días. Chat abierto."
+        )
+
+        await enviar_log(
+            context,
+            "📋 LOG SISTEMA\nAcción: APERTURA AUTOMÁTICA DEL CHAT"
         )
     except Exception as e:
         print(f"Error abriendo chat: {e}")
 
 async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
+    member = await update.effective_chat.get_member(update.effective_user.id)
 
-    member = await context.bot.get_chat_member(chat_id, user_id)
-
-    if member.status not in ["administrator", "creator"]:
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
         return
 
     try:
         await update.message.delete()
-    except:
+    except Exception:
         pass
 
     await context.bot.send_message(
-        chat_id=chat_id,
+        chat_id=update.effective_chat.id,
         text=(
             "🔧 *Panel de Administrador*\n\n"
             "⚠️ Moderación:\n"
             "/warn (reply) - Dar advertencia\n"
+            "/unwarn (reply) - Quitar un warning\n"
             "/reset (reply) - Reset warnings\n"
             "/mute (reply) - Silenciar usuario\n"
             "/unmute (reply) - Quitar mute\n"
             "/ban (reply) - Expulsar usuario\n\n"
             "📊 Información:\n"
-            "/warnings (reply) - Ver warnings de usuario\n"
+            "/warnings - Ver tus warnings\n"
+            "/warnings (reply) - Ver warnings de otro usuario\n"
             "/chatid - Ver ID del grupo\n\n"
             "⚙️ Sistema:\n"
             "Auto cierre: 12:00 AM\n"
@@ -397,81 +490,46 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-async def cerrar_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def enviar_log(context: ContextTypes.DEFAULT_TYPE, mensaje: str):
+    try:
+        await context.bot.send_message(
+            chat_id=LOG_GROUP_ID,
+            text=mensaje
+        )
+    except Exception as e:
+        print(f"Error enviando log: {e}")
+
+async def unwarn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = await update.effective_chat.get_member(update.effective_user.id)
 
     if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="No tienes permisos para usar /cerrar."
-        )
         return
 
-    try:
-        await update.message.delete()
-    except Exception:
-        pass
-
-    try:
-        await context.bot.set_chat_permissions(
-            chat_id=update.effective_chat.id,
-            permissions=ChatPermissions(can_send_messages=False)
-        )
-
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="🌙 Chat cerrado por un administrador."
-        )
-    except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"Error al cerrar el chat: {e}"
-        )
-
-async def abrir_manual(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    member = await update.effective_chat.get_member(update.effective_user.id)
-
-    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="No tienes permisos para usar /abrir."
-        )
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al mensaje del usuario para quitarle un warning.")
         return
 
-    try:
-        await update.message.delete()
-    except Exception:
-        pass
+    user = update.message.reply_to_message.from_user
+    user_id = user.id
 
-    try:
-        await context.bot.set_chat_permissions(
-            chat_id=update.effective_chat.id,
-            permissions=ChatPermissions(
-                can_send_messages=True,
-                can_send_audios=True,
-                can_send_documents=True,
-                can_send_photos=True,
-                can_send_videos=True,
-                can_send_video_notes=True,
-                can_send_voice_notes=True,
-                can_send_polls=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True,
-                can_change_info=False,
-                can_invite_users=True,
-                can_pin_messages=False
-            )
-        )
+    warnings[user_id] = max(warnings.get(user_id, 0) - 1, 0)
 
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="☀️ Chat abierto por un administrador."
-        )
-    except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"Error al abrir el chat: {e}"
-        )
+    await update.effective_chat.send_message(
+        f"✅ Se removió un warning a {user.first_name}.\nWarnings actuales: {warnings[user_id]}"
+    )
+
+    admin_name = update.effective_user.first_name
+    user_name = user.first_name
+
+    await enviar_log(
+        context,
+        f"📋 LOG MODERACIÓN\n"
+        f"Admin: {admin_name}\n"
+        f"Usuario: {user_name}\n"
+        f"Acción: UNWARN\n"
+        f"Total warnings: {warnings[user_id]}"
+    )
+
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -491,13 +549,12 @@ app.add_handler(CommandHandler("reporte", reporte))
 app.add_handler(CommandHandler("reset", reset_warnings))
 app.add_handler(CommandHandler("warnings", mis_warnings))
 app.add_handler(CommandHandler("warn", warn))
+app.add_handler(CommandHandler("unwarn", unwarn))
 app.add_handler(CommandHandler("mute", mute))
 app.add_handler(CommandHandler("unmute", unmute))
 app.add_handler(CommandHandler("ban", ban))
 app.add_handler(CommandHandler("adminhelp", adminhelp))
 app.add_handler(CommandHandler("chatid", chatid))
-app.add_handler(CommandHandler("cerrar", cerrar_manual))
-app.add_handler(CommandHandler("abrir", abrir_manual))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, moderar))
 
