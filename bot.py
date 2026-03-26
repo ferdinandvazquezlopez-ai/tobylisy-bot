@@ -7,9 +7,7 @@ from zoneinfo import ZoneInfo
 import time
 from telegram.constants import ChatMemberStatus
 
-user_messages = defaultdict(list)
 warnings = {}
-
 user_messages = defaultdict(list)
 last_sender = None
 consecutive_count = 0
@@ -64,7 +62,10 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
-    await anti_spam(update, context)
+
+    result = await anti_spam(update, context)
+    if result:
+        return
 
     texto = update.message.text.lower()
     user = update.message.from_user
@@ -99,6 +100,23 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.effective_chat.send_message(
                     f"🔴 {user.first_name} fue expulsado por acumular 3 advertencias."
                 )
+
+                await enviar_log(
+                    context,
+                    f"📋 LOG MODERACIÓN\n"
+                    f"Usuario: {user.first_name}\n"
+                    f"Acción: EXPULSIÓN AUTOMÁTICA\n"
+                    f"Motivo: 3 advertencias acumuladas"
+                )
+
+            await enviar_log(
+                context,
+                f"📋 LOG MODERACIÓN\n"
+                f"Usuario: {user.first_name}\n"
+                f"Acción: WARNING AUTOMÁTICO\n"
+                f"Palabra detectada: {palabra}\n"
+                f"Total warnings: {warnings[user_id]}"
+            )
 
             break
 
@@ -163,7 +181,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global last_sender, consecutive_count
 
     if not update.message or not update.message.from_user:
-        return
+        return False
 
     user = update.message.from_user
     user_id = user.id
@@ -204,10 +222,10 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 until_date=int(time.time()) + 180
             )
 
-            motivo = "SPAM (ráfaga)" if flood else "MONOPOLIZANDO CHAT"
+            motivo = "SPAM (ráfaga de más de 10 mensajes en 5 segundos)" if flood else "MONOPOLIZANDO EL CHAT (10 mensajes consecutivos)"
 
             await update.effective_chat.send_message(
-                f"⏸️ {user.first_name}, necesitas un break de 3 minutos. Tomate un Cafe.\nMotivo: {motivo}"
+                f"⏸️ {user.first_name}, necesitas un break de 3 minutos.\nTómate un café ☕\nMotivo: {motivo}"
             )
 
             await enviar_log(
@@ -228,6 +246,10 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_messages[user_id] = []
         consecutive_count = 0
         last_sender = None
+
+        return True
+
+    return False
 
 async def warn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = await update.effective_chat.get_member(update.effective_user.id)
@@ -530,6 +552,32 @@ async def unwarn(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Total warnings: {warnings[user_id]}"
     )
 
+async def reset_warnings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = await update.effective_chat.get_member(update.effective_user.id)
+
+    if member.status not in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+        return
+
+    if not update.message.reply_to_message:
+        await update.message.reply_text("Responde al usuario para resetear warnings.")
+        return
+
+    user = update.message.reply_to_message.from_user
+    user_id = user.id
+
+    warnings[user_id] = 0
+
+    await update.effective_chat.send_message(
+        f"♻️ Warnings de {user.first_name} han sido reiniciados."
+    )
+
+    await enviar_log(
+        context,
+        f"📋 LOG MODERACIÓN\n"
+        f"Admin: {update.effective_user.first_name}\n"
+        f"Usuario: {user.first_name}\n"
+        f"Acción: RESET WARNINGS"
+    )
 
 app = ApplicationBuilder().token(TOKEN).build()
 
