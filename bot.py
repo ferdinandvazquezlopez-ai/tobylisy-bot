@@ -43,7 +43,7 @@ Se cierra en la noche y abre en la mañana.
 PALABRAS_PROHIBIDAS = [
     "idiota", "estupido", "bruto", "cabron", "pendejo",
     "imbecil", "basura", "ridiculo",
-    "zangano", "loco", "asqueroso",
+    "zangano", "asqueroso",
     "porqueria", "mierda", "jodio", "mamabicho", "moron",
     "stupid", "idiot", "dumb", "trash", "loser",
     "fuck", "shit", "bitch", "asshole", "bastard", "pulpo", "moco", "estupida", "estúpido", "estúpida"
