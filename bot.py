@@ -50,7 +50,6 @@ Se cierra en la noche y abre en la mañana.
 
 PALABRAS_PROHIBIDAS = [
     "idiota",
-    "estupido",
     "bruto",
     "cabron",
     "pendejo",
@@ -75,10 +74,8 @@ PALABRAS_PROHIBIDAS = [
     "asshole",
     "bastard",
     "pulpo",
-    "moco",
-    "estupida",
-    "estúpido",
-    "estúpida",
+    "moco"
+    
 ]
 
 
