@@ -14,7 +14,6 @@ from telegram.ext import (
     filters,
 )
 
-
 warnings_by_user = {}
 user_messages = defaultdict(list)
 last_sender = None
@@ -52,11 +51,13 @@ Se cierra en la noche y abre en la mañana.
 PALABRAS_PROHIBIDAS = [
     "idiota",
     "estupido",
+    "bruto",
     "cabron",
     "pendejo",
     "imbecil",
     "basura",
     "ridiculo",
+    "zangano",
     "asqueroso",
     "porqueria",
     "mierda",
@@ -74,8 +75,10 @@ PALABRAS_PROHIBIDAS = [
     "asshole",
     "bastard",
     "pulpo",
-    "moco"
-    
+    "moco",
+    "estupida",
+    "estúpido",
+    "estúpida",
 ]
 
 
@@ -164,7 +167,9 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     for member in update.message.new_chat_members:
-        await update.message.reply_text(f"👋 Bienvenido/a {member.first_name}\n\n{REGLAS}")
+        await update.message.reply_text(
+            f"👋 Bienvenido/a {member.first_name}\n\n{REGLAS}"
+        )
 
 
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -329,6 +334,10 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Total warnings: {total_warnings}",
         )
         break
+
+
+async def moderar_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await bloquear_contenido_no_permitido(update, context)
 
 
 async def reporte(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -521,10 +530,6 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def moderar_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await bloquear_contenido_no_permitido(update, context)
-
-
 async def unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
@@ -603,7 +608,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     bot_member = await update.effective_chat.get_member(context.bot.id)
-    bot_permissions = getattr(bot_member, "can_delete_messages", None)
+    can_delete = getattr(bot_member, "can_delete_messages", False)
     chat = update.effective_chat
     permisos = chat.permissions
 
@@ -617,7 +622,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Token: {token_status}\n"
         f"Job queue: {estado_job_queue}\n"
         f"Bot es admin: {'sí' if bot_member.status in [ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER] else 'no'}\n"
-        f"Puede borrar mensajes: {'sí' if bot_permissions else 'no'}\n\n"
+        f"Puede borrar mensajes: {'sí' if can_delete else 'no'}\n\n"
         "Permisos activos del grupo:\n"
         f"Mensajes: {'sí' if permisos and permisos.can_send_messages else 'no'}\n"
         f"Fotos: {'sí' if permisos and permisos.can_send_photos else 'no'}\n"
@@ -660,9 +665,9 @@ async def adminhelp(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📊 Información:\n"
             "/warnings - Ver tus warnings\n"
             "/warnings (reply) - Ver warnings de otro usuario\n"
-            "/chatid - Ver ID del grupo\n\n"
+            "/chatid - Ver ID del grupo\n"
+            "/status - Ver estado del bot y permisos\n\n"
             "⚙️ Sistema:\n"
-            "/status - Ver estado del bot y permisos\n"
             "/openchat - Abrir el chat manualmente\n"
             "/closechat - Cerrar el chat manualmente\n"
             "Auto cierre: 12:00 AM\n"
@@ -693,7 +698,10 @@ async def abrir_chat(context: ContextTypes.DEFAULT_TYPE):
             chat_id=GROUP_ID,
             permissions=allowed_chat_permissions(),
         )
-        await context.bot.send_message(chat_id=GROUP_ID, text="☀️ Buenos días. Chat abierto.")
+        await context.bot.send_message(
+            chat_id=GROUP_ID,
+            text="☀️ Buenos días. Chat abierto.",
+        )
         await enviar_log(context, "📋 LOG SISTEMA\nAcción: APERTURA AUTOMÁTICA DEL CHAT")
     except Exception as exc:
         print(f"Error abriendo chat: {exc}")
@@ -745,19 +753,34 @@ async def closechat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_chat.send_message(f"No pude cerrar el chat. Error: {exc}")
 
 
+async def post_init(application):
+    await application.bot.delete_webhook(drop_pending_updates=True)
+
+
 def main():
     if not TOKEN:
         raise RuntimeError("No encontré la variable de entorno TOKEN.")
 
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .post_init(post_init)
+        .build()
+    )
 
     if not app.job_queue:
         raise RuntimeError(
             "JobQueue no está disponible. Instala python-telegram-bot con extras de job-queue."
         )
 
-    app.job_queue.run_daily(cerrar_chat, time=dt_time(hour=0, minute=0, tzinfo=TIMEZONE))
-    app.job_queue.run_daily(abrir_chat, time=dt_time(hour=7, minute=0, tzinfo=TIMEZONE))
+    app.job_queue.run_daily(
+        cerrar_chat,
+        time=dt_time(hour=0, minute=0, tzinfo=TIMEZONE),
+    )
+    app.job_queue.run_daily(
+        abrir_chat,
+        time=dt_time(hour=7, minute=0, tzinfo=TIMEZONE),
+    )
 
     app.add_handler(CommandHandler("reglas", reglas))
     app.add_handler(CommandHandler("reporte", reporte))
@@ -773,6 +796,7 @@ def main():
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("openchat", openchat))
     app.add_handler(CommandHandler("closechat", closechat))
+
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, moderar))
     app.add_handler(
@@ -784,3 +808,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
